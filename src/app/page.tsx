@@ -6,6 +6,7 @@ import AuthModal from '@/components/auth/AuthModal';
 import Lobby from '@/components/lobby/Lobby';
 import GameBoard from '@/components/game/GameBoard';
 import SinglePlayerGame from '@/components/game/SinglePlayerGame';
+import LoadingScreen from '@/components/common/LoadingScreen';
 import { GameState } from '@/lib/hoola/types';
 
 export default function Home() {
@@ -94,11 +95,7 @@ export default function Home() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-amber-400 font-bold">
-        훌라 게임 로딩 중...
-      </div>
-    );
+    return <LoadingScreen message="서버에 연결하고 있습니다..." />;
   }
 
   // 1단계: 미인증 시 로그인/회원가입/게스트 모달
