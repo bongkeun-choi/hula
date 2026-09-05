@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Coins, Trophy, Plus, LogOut, ArrowRight, RefreshCw } from 'lucide-react';
+import { sound } from '@/lib/sound';
 
 interface LobbyProps {
   user: any;
@@ -16,6 +17,7 @@ export default function Lobby({ user, onJoinRoom, onStartSinglePlayer, onLogout 
 
   // 새로운 방 생성 (6자리 코드)
   const handleCreateRoom = () => {
+    sound.playCardDraw();
     setIsCreating(true);
     const newRoomCode = Math.floor(100000 + Math.random() * 900000).toString();
     onJoinRoom(newRoomCode);
@@ -25,6 +27,7 @@ export default function Lobby({ user, onJoinRoom, onStartSinglePlayer, onLogout 
   const handleJoinByCode = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputRoomId.trim()) return;
+    sound.playCardSelect();
     onJoinRoom(inputRoomId.trim());
   };
 
@@ -73,7 +76,10 @@ export default function Lobby({ user, onJoinRoom, onStartSinglePlayer, onLogout 
       <section className="my-6 space-y-3">
         {/* 혼자하기 (AI 대전) 버튼 */}
         <button
-          onClick={onStartSinglePlayer}
+          onClick={() => {
+            sound.playCardDraw();
+            onStartSinglePlayer();
+          }}
           className="w-full py-4 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-lg rounded-2xl shadow-xl flex items-center justify-center gap-2 active:scale-98 transition-all border border-amber-300/40"
         >
           <span className="text-2xl">🤖</span>

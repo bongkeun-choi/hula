@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { Socket } from 'socket.io-client';
 import confetti from 'canvas-confetti';
-import { LogOut, Volume2, Sparkles, Check, ArrowDown, HelpCircle } from 'lucide-react';
+import { LogOut, Volume2, VolumeX, Sparkles, Check, ArrowDown, HelpCircle } from 'lucide-react';
 import { GameState, Player, Card, Meld } from '@/lib/hoola/types';
 import { validateMeld, canAttachCard, calculateHandScore, sortCards } from '@/lib/hoola/rules';
+import { sound } from '@/lib/sound';
 import PlayingCard from './PlayingCard';
 import VoiceChat from '../voice/VoiceChat';
 
@@ -26,11 +27,21 @@ export default function GameBoard({
   const [sortType, setSortType] = useState<'RANK' | 'SUIT'>('RANK');
   const [speakingPlayers, setSpeakingPlayers] = useState<Set<string>>(new Set());
   const [targetMeldForAttach, setTargetMeldForAttach] = useState<string | null>(null);
+  const [isSoundOn, setIsSoundOn] = useState(true);
+  const prevIsTurnRef = useRef<boolean>(false);
 
   // 내 플레이어 객체
   const me: Player | undefined = useMemo(() => {
     return gameState.players.find((p) => p.id === currentUser.id);
   }, [gameState.players, currentUser.id]);
+
+  // 내 턴 전환 감지 및 효과음 재생
+  useEffect(() => {
+    if (me?.isTurn && !prevIsTurnRef.current && gameState.status === 'PLAYING') {
+      sound.playMyTurn();
+    }
+    prevIsTurnRef.current = !!me?.isTurn;
+  }, [me?.isTurn, gameState.status]);
 
   // 다른 플레이어 목록
   const otherPlayers: Player[] = useMemo(() => {
@@ -54,16 +65,26 @@ export default function GameBoard({
     return validateMeld(selectedCards);
   }, [selectedCards]);
 
-  // 승리 발생 시 콘페티(폭죽) 효과
+  // 승리/패배 발생 시 콘페티(폭죽) 및 효과음
   useEffect(() => {
     if (gameState.status === 'ENDED' && gameState.winner) {
+      if (gameState.winner.player.id === currentUser.id) {
+        if (gameState.winner.type === 'HOOLA') {
+          sound.playHoolaWin();
+        } else {
+          sound.playWin();
+        }
+      } else {
+        sound.playLose();
+      }
+
       confetti({
         particleCount: 120,
         spread: 80,
         origin: { y: 0.6 },
       });
     }
-  }, [gameState.status, gameState.winner]);
+  }, [gameState.status, gameState.winner, currentUser.id]);
 
   // 발언 상태 소켓 리스너
   useEffect(() => {
@@ -85,26 +106,40 @@ export default function GameBoard({
 
   // 카드 선택 토글
   const toggleCardSelect = (cardId: string) => {
+    sound.playCardSelect();
     setSelectedCardIds((prev) =>
       prev.includes(cardId) ? prev.filter((id) => id !== cardId) : [...prev, cardId]
     );
   };
 
+  // 사운드 토글
+  const handleToggleSound = () => {
+    const newState = sound.toggleSound();
+    setIsSoundOn(newState);
+  };
+
   // 소켓 액션 전송
-  const handleToggleReady = () => socket?.emit('toggle_ready');
+  const handleToggleReady = () => {
+    sound.playCardSelect();
+    socket?.emit('toggle_ready');
+  };
+
   const handleDrawCard = (fromDiscard: boolean) => {
+    sound.playCardDraw();
     socket?.emit('draw_card', { fromDiscard });
     setSelectedCardIds([]);
   };
 
   const handleRegisterMeld = () => {
     if (!meldValidation.valid) return;
+    sound.playMeld();
     socket?.emit('register_meld', { cardIds: selectedCardIds });
     setSelectedCardIds([]);
   };
 
   const handleAttachCard = (meldId: string) => {
     if (selectedCardIds.length !== 1) return;
+    sound.playAttach();
     socket?.emit('attach_card', { meldId, cardId: selectedCardIds[0] });
     setSelectedCardIds([]);
     setTargetMeldForAttach(null);
@@ -112,12 +147,14 @@ export default function GameBoard({
 
   const handleDiscardCard = () => {
     if (selectedCardIds.length !== 1) return;
+    sound.playCardDiscard();
     socket?.emit('discard_card', { cardId: selectedCardIds[0] });
     setSelectedCardIds([]);
   };
 
   const handleCallStop = () => {
     if (confirm('스톱을 선언하시겠습니까? (다른 플레이어보다 점수가 높으면 바가지 독박)')) {
+      sound.playStopAlert();
       socket?.emit('call_stop');
     }
   };
@@ -132,7 +169,7 @@ export default function GameBoard({
 
   return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col justify-between select-none max-w-lg mx-auto pb-4 px-2">
-      {/* 1. 상단 바: 방 번호, 음성 채팅 컨트롤, 나가기 */}
+      {/* 1. 상단 바: 방 번호, 음성 채팅 컨트롤, 효과음 토글, 나가기 */}
       <div className="flex items-center justify-between py-2 border-b border-slate-800">
         <div className="flex items-center gap-2">
           <span className="font-black text-amber-400 text-sm"># {gameState.roomId}</span>
@@ -142,6 +179,19 @@ export default function GameBoard({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* 게임 효과음 On/Off 버튼 */}
+          <button
+            onClick={handleToggleSound}
+            className={`p-1.5 rounded-lg border transition-colors ${
+              isSoundOn
+                ? 'bg-slate-800 border-slate-700 text-amber-400 hover:text-amber-300'
+                : 'bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-400'
+            }`}
+            title={isSoundOn ? '효과음 켜짐' : '효과음 꺼짐'}
+          >
+            {isSoundOn ? <Volume2 size={16} /> : <VolumeX size={16} />}
+          </button>
+
           {/* WebRTC 음성 채팅 버튼 */}
           <VoiceChat
             socket={socket}

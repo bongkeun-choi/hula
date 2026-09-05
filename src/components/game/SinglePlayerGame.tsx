@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import confetti from 'canvas-confetti';
-import { ArrowLeft, Sparkles, ArrowDown, HelpCircle, RotateCcw, Bot } from 'lucide-react';
+import { ArrowLeft, Sparkles, ArrowDown, HelpCircle, RotateCcw, Bot, Volume2, VolumeX } from 'lucide-react';
 import { GameState, Player, Card, Meld } from '@/lib/hoola/types';
 import { createDeck, validateMeld, canAttachCard, calculateHandScore, sortCards } from '@/lib/hoola/rules';
 import { decideBotTurn } from '@/lib/hoola/aiPlayer';
+import { sound } from '@/lib/sound';
 import PlayingCard from './PlayingCard';
 
 interface SinglePlayerGameProps {
@@ -19,6 +20,8 @@ export default function SinglePlayerGame({ user, onExit }: SinglePlayerGameProps
   const [sortType, setSortType] = useState<'RANK' | 'SUIT'>('RANK');
   const [hintMessage, setHintMessage] = useState<string | null>(null);
   const [isBotThinking, setIsBotThinking] = useState(false);
+  const [isSoundOn, setIsSoundOn] = useState(true);
+  const prevIsTurnRef = useRef<boolean>(true);
 
   // 싱글 게임 초기화 (나 + AI 봇 3명 = 4인 플레이)
   const initSingleGame = useCallback(() => {
@@ -134,6 +137,7 @@ export default function SinglePlayerGame({ user, onExit }: SinglePlayerGameProps
           const card = state.discardPile.pop()!;
           bot.cards.push(card);
           state.history.push(`${bot.nickname}이(가) 버린 패 [${card.display}]를 집어갔습니다.`);
+          sound.playCardDraw();
         } else {
           if (state.deck.length === 0) {
             state.deck = createDeck(false);
@@ -141,6 +145,7 @@ export default function SinglePlayerGame({ user, onExit }: SinglePlayerGameProps
           const card = state.deck.pop()!;
           bot.cards.push(card);
           state.history.push(`${bot.nickname}이(가) 덱에서 카드를 뽑았습니다.`);
+          sound.playCardDraw();
         }
         bot.cards = sortCards(bot.cards, 'RANK');
 
@@ -158,6 +163,7 @@ export default function SinglePlayerGame({ user, onExit }: SinglePlayerGameProps
               cards,
             });
             state.history.push(`${bot.nickname}이(가) [${cards.map((c) => c.display).join(' ')}] 등록!`);
+            sound.playMeld();
           }
         });
 
@@ -172,6 +178,7 @@ export default function SinglePlayerGame({ user, onExit }: SinglePlayerGameProps
               bot.cards = bot.cards.filter((c) => c.id !== cardId);
               bot.hasRegistered = true;
               state.history.push(`${bot.nickname}이(가) 필드에 [${card.display}] 이어붙이기!`);
+              sound.playAttach();
             }
           }
         });
@@ -186,6 +193,7 @@ export default function SinglePlayerGame({ user, onExit }: SinglePlayerGameProps
             chipsWon: 3000,
           };
           state.history.push(`🚨 ${bot.nickname} 승리!`);
+          sound.playLose();
           setIsBotThinking(false);
           return state;
         }
@@ -202,6 +210,7 @@ export default function SinglePlayerGame({ user, onExit }: SinglePlayerGameProps
             state.status = 'ENDED';
             state.winner = { player: bot, type: 'STOP', score: botScore, chipsWon: 3000 };
             state.history.push(`✋ ${bot.nickname}이(가) ${botScore}점으로 스톱에 성공하여 승리했습니다!`);
+            sound.playLose();
             setIsBotThinking(false);
             return state;
           }
@@ -212,6 +221,7 @@ export default function SinglePlayerGame({ user, onExit }: SinglePlayerGameProps
         const [discarded] = bot.cards.splice(discardIdx >= 0 ? discardIdx : 0, 1);
         state.discardPile.push(discarded);
         state.history.push(`${bot.nickname}이(가) [${discarded.display}] 카드를 버렸습니다.`);
+        sound.playCardDiscard();
 
         if (bot.cards.length === 0) {
           state.status = 'ENDED';
@@ -221,6 +231,7 @@ export default function SinglePlayerGame({ user, onExit }: SinglePlayerGameProps
             score: 0,
             chipsWon: 3000,
           };
+          sound.playLose();
           setIsBotThinking(false);
           return state;
         }
@@ -231,6 +242,11 @@ export default function SinglePlayerGame({ user, onExit }: SinglePlayerGameProps
         state.currentTurnIndex = (state.currentTurnIndex + 1) % state.players.length;
         state.players[state.currentTurnIndex].isTurn = true;
         state.players[state.currentTurnIndex].hasDrawn = false;
+
+        // 다음 턴이 나(플레이어)라면 챠임 알림음
+        if (state.currentTurnIndex === 0) {
+          sound.playMyTurn();
+        }
 
         setIsBotThinking(false);
         return state;
@@ -243,6 +259,7 @@ export default function SinglePlayerGame({ user, onExit }: SinglePlayerGameProps
   // 유저 액션: 드로우
   const handleUserDraw = (fromDiscard: boolean) => {
     if (!gameState || !me?.isTurn || me?.hasDrawn) return;
+    sound.playCardDraw();
 
     setGameState((prev) => {
       if (!prev) return prev;
@@ -270,8 +287,10 @@ export default function SinglePlayerGame({ user, onExit }: SinglePlayerGameProps
   };
 
   // 유저 액션: 등록
+  // 유저 액션: 등록
   const handleUserRegister = () => {
     if (!gameState || !me?.isTurn || !me?.hasDrawn || !meldValidation.valid || !meldValidation.type) return;
+    sound.playMeld();
 
     setGameState((prev) => {
       if (!prev) return prev;
@@ -294,6 +313,7 @@ export default function SinglePlayerGame({ user, onExit }: SinglePlayerGameProps
       if (player.cards.length === 0) {
         state.status = 'ENDED';
         state.winner = { player, type: 'NORMAL', score: 0, chipsWon: 3000 };
+        sound.playWin();
         confetti();
       }
 
@@ -305,6 +325,7 @@ export default function SinglePlayerGame({ user, onExit }: SinglePlayerGameProps
   // 유저 액션: 붙이기
   const handleUserAttach = (meldId: string) => {
     if (!gameState || !me?.isTurn || !me?.hasDrawn || selectedCardIds.length !== 1) return;
+    sound.playAttach();
 
     setGameState((prev) => {
       if (!prev) return prev;
@@ -324,6 +345,7 @@ export default function SinglePlayerGame({ user, onExit }: SinglePlayerGameProps
           if (player.cards.length === 0) {
             state.status = 'ENDED';
             state.winner = { player, type: 'NORMAL', score: 0, chipsWon: 3000 };
+            sound.playWin();
             confetti();
           }
         }
@@ -336,6 +358,7 @@ export default function SinglePlayerGame({ user, onExit }: SinglePlayerGameProps
   // 유저 액션: 버리기
   const handleUserDiscard = () => {
     if (!gameState || !me?.isTurn || !me?.hasDrawn || selectedCardIds.length !== 1) return;
+    sound.playCardDiscard();
 
     setGameState((prev) => {
       if (!prev) return prev;
@@ -356,6 +379,11 @@ export default function SinglePlayerGame({ user, onExit }: SinglePlayerGameProps
           score: 0,
           chipsWon: isHoola ? 6000 : 3000,
         };
+        if (isHoola) {
+          sound.playHoolaWin();
+        } else {
+          sound.playWin();
+        }
         confetti({ particleCount: 150, spread: 90 });
         return state;
       }
@@ -375,6 +403,7 @@ export default function SinglePlayerGame({ user, onExit }: SinglePlayerGameProps
   // 유저 액션: 스톱
   const handleUserStop = () => {
     if (!gameState || !me?.isTurn || !me?.hasDrawn) return;
+    sound.playStopAlert();
 
     const callerScore = calculateHandScore(me.cards);
     let minScore = callerScore;
@@ -397,17 +426,26 @@ export default function SinglePlayerGame({ user, onExit }: SinglePlayerGameProps
       if (isBak) {
         state.winner = { player: actualWinner, type: 'STOP', score: minScore, chipsWon: 3000 };
         state.history.push(`🚨 스톱 실패 (바가지 독박)! ${actualWinner.nickname}이 더 낮은 점수로 승리했습니다.`);
+        sound.playLose();
       } else {
         state.winner = { player: me, type: 'STOP', score: callerScore, chipsWon: 3000 };
         state.history.push(`🏆 축하합니다! ${callerScore}점으로 스톱에 성공하여 승리했습니다!`);
+        sound.playWin();
         confetti();
       }
       return state;
     });
   };
 
+  // 사운드 토글
+  const handleToggleSound = () => {
+    const newState = sound.toggleSound();
+    setIsSoundOn(newState);
+  };
+
   // 초보자를 위한 힌트 기능: 등록 가능한 패 추천
   const handleShowHint = () => {
+    sound.playCardSelect();
     if (!me) return;
     const seven = me.cards.find((c) => c.rank === 7);
     if (seven) {
@@ -426,7 +464,7 @@ export default function SinglePlayerGame({ user, onExit }: SinglePlayerGameProps
 
   return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col justify-between select-none max-w-lg mx-auto pb-4 px-2">
-      {/* 상단 바: 나가기 & 힌트 */}
+      {/* 상단 바: 나가기, 사운드 토글 & 힌트 */}
       <div className="flex items-center justify-between py-2 border-b border-slate-800">
         <button
           onClick={onExit}
@@ -437,6 +475,19 @@ export default function SinglePlayerGame({ user, onExit }: SinglePlayerGameProps
         </button>
 
         <div className="flex items-center gap-2">
+          {/* 사운드 토글 버튼 */}
+          <button
+            onClick={handleToggleSound}
+            className={`p-1.5 rounded-lg border transition-colors ${
+              isSoundOn
+                ? 'bg-slate-800 border-slate-700 text-amber-400 hover:text-amber-300'
+                : 'bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-400'
+            }`}
+            title={isSoundOn ? '효과음 켜짐' : '효과음 꺼짐'}
+          >
+            {isSoundOn ? <Volume2 size={16} /> : <VolumeX size={16} />}
+          </button>
+
           <span className="text-[11px] bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold">
             🤖 AI 연습 모드
           </span>
@@ -606,6 +657,7 @@ export default function SinglePlayerGame({ user, onExit }: SinglePlayerGameProps
                   size="md"
                   isSelected={isSelected}
                   onClick={() => {
+                    sound.playCardSelect();
                     setSelectedCardIds((prev) =>
                       prev.includes(card.id) ? prev.filter((id) => id !== card.id) : [...prev, card.id]
                     );
