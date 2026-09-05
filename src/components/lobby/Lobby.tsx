@@ -6,10 +6,11 @@ import { Coins, Trophy, Plus, LogOut, ArrowRight, RefreshCw } from 'lucide-react
 interface LobbyProps {
   user: any;
   onJoinRoom: (roomId: string) => void;
+  onStartSinglePlayer: () => void;
   onLogout: () => void;
 }
 
-export default function Lobby({ user, onJoinRoom, onLogout }: LobbyProps) {
+export default function Lobby({ user, onJoinRoom, onStartSinglePlayer, onLogout }: LobbyProps) {
   const [inputRoomId, setInputRoomId] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
@@ -68,16 +69,25 @@ export default function Lobby({ user, onJoinRoom, onLogout }: LobbyProps) {
         </div>
       </header>
 
-      {/* 중앙 액션: 방 만들기 & 방 입장 */}
-      <section className="my-6 space-y-4">
+      {/* 중앙 액션: 혼자하기(AI) & 방 만들기 & 방 입장 */}
+      <section className="my-6 space-y-3">
+        {/* 혼자하기 (AI 대전) 버튼 */}
+        <button
+          onClick={onStartSinglePlayer}
+          className="w-full py-4 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-lg rounded-2xl shadow-xl flex items-center justify-center gap-2 active:scale-98 transition-all border border-amber-300/40"
+        >
+          <span className="text-2xl">🤖</span>
+          <span>혼자하기 (AI 봇과 연습 대전)</span>
+        </button>
+
         {/* 새 게임방 만들기 버튼 */}
         <button
           onClick={handleCreateRoom}
           disabled={isCreating}
-          className="w-full py-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-lg rounded-2xl shadow-xl flex items-center justify-center gap-2 active:scale-98 transition-all"
+          className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-base rounded-2xl shadow-xl flex items-center justify-center gap-2 active:scale-98 transition-all"
         >
-          <Plus size={22} className="stroke-[3]" />
-          <span>새 훌라 게임방 만들기</span>
+          <Plus size={20} className="stroke-[3]" />
+          <span>멀티 음성 게임방 만들기</span>
         </button>
 
         {/* 방 코드 입력 입장 */}

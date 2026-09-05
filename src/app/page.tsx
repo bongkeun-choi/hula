@@ -5,11 +5,13 @@ import { io, Socket } from 'socket.io-client';
 import AuthModal from '@/components/auth/AuthModal';
 import Lobby from '@/components/lobby/Lobby';
 import GameBoard from '@/components/game/GameBoard';
+import SinglePlayerGame from '@/components/game/SinglePlayerGame';
 import { GameState } from '@/lib/hoola/types';
 
 export default function Home() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isSinglePlayer, setIsSinglePlayer] = useState(false);
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
@@ -108,18 +110,29 @@ export default function Home() {
     );
   }
 
-  // 2단계: 방에 들어가지 않은 상태면 로비 화면 표시
+  // 2단계: 싱글플레이어 (혼자하기 AI 모드)
+  if (isSinglePlayer) {
+    return (
+      <SinglePlayerGame
+        user={user}
+        onExit={() => setIsSinglePlayer(false)}
+      />
+    );
+  }
+
+  // 3단계: 방에 들어가지 않은 상태면 로비 화면 표시
   if (!currentRoomId || !gameState) {
     return (
       <Lobby
         user={user}
         onJoinRoom={handleJoinRoom}
+        onStartSinglePlayer={() => setIsSinglePlayer(true)}
         onLogout={handleLogout}
       />
     );
   }
 
-  // 3단계: 방에 들어왔으면 인게임 보드 표시
+  // 4단계: 방에 들어왔으면 멀티플레이어 인게임 보드 표시
   return (
     <>
       {errorMessage && (
