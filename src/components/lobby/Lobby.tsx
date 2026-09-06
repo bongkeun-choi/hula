@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Coins, Trophy, Plus, LogOut, ArrowRight, RefreshCw } from 'lucide-react';
+import { Coins, Trophy, Plus, LogOut, ArrowRight, RefreshCw, Volume2, VolumeX } from 'lucide-react';
 import { sound } from '@/lib/sound';
 
 interface LobbyProps {
@@ -14,6 +14,16 @@ interface LobbyProps {
 export default function Lobby({ user, onJoinRoom, onStartSinglePlayer, onLogout }: LobbyProps) {
   const [inputRoomId, setInputRoomId] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [isSoundOn, setIsSoundOn] = useState(true);
+
+  // 사운드 토글 & 테스트 재생
+  const handleToggleSound = () => {
+    const next = sound.toggleSound();
+    setIsSoundOn(next);
+    if (next) {
+      sound.playMeld();
+    }
+  };
 
   // 새로운 방 생성 (6자리 코드)
   const handleCreateRoom = () => {
@@ -62,13 +72,28 @@ export default function Lobby({ user, onJoinRoom, onStartSinglePlayer, onLogout 
               </div>
             </div>
           </div>
-          <button
-            onClick={onLogout}
-            title="로그아웃"
-            className="p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-xl transition-colors"
-          >
-            <LogOut size={18} />
-          </button>
+          <div className="flex items-center gap-1.5">
+            {/* 효과음 On/Off & 소리 테스트 버튼 */}
+            <button
+              onClick={handleToggleSound}
+              title={isSoundOn ? '효과음 켜짐 (클릭하여 테스트)' : '효과음 꺼짐'}
+              className={`p-2 rounded-xl border transition-all ${
+                isSoundOn
+                  ? 'bg-amber-500/20 border-amber-500/40 text-amber-400 hover:bg-amber-500/30'
+                  : 'bg-slate-800 border-slate-700 text-slate-500'
+              }`}
+            >
+              {isSoundOn ? <Volume2 size={18} /> : <VolumeX size={18} />}
+            </button>
+
+            <button
+              onClick={onLogout}
+              title="로그아웃"
+              className="p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-xl transition-colors"
+            >
+              <LogOut size={18} />
+            </button>
+          </div>
         </div>
       </header>
 
