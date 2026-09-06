@@ -403,7 +403,7 @@ export default function GameBoard({
           </div>
 
           {/* 내 손패 카드 나열 (가로 스크롤 가능 및 큼직한 카드 뷰) */}
-          <div className="flex items-end justify-start sm:justify-center overflow-x-auto py-3 px-1 -space-x-3 sm:-space-x-2 scrollbar-none min-h-[110px]">
+          <div className="flex items-end justify-start sm:justify-center overflow-x-auto pt-5 pb-2 px-2 -space-x-3 sm:-space-x-2 scrollbar-none min-h-[124px]">
             {sortedCards.map((card) => {
               const isSelected = selectedCardIds.includes(card.id);
               return (
