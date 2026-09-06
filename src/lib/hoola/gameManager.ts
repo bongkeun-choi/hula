@@ -39,6 +39,35 @@ export class GameManager {
     return this.rooms.get(roomId);
   }
 
+  // 현재 활성화된 실제 방 목록 가져오기
+  public getActiveRooms(): {
+    roomId: string;
+    playerCount: number;
+    status: 'WAITING' | 'PLAYING' | 'ENDED';
+    hostNickname: string;
+  }[] {
+    const list: {
+      roomId: string;
+      playerCount: number;
+      status: 'WAITING' | 'PLAYING' | 'ENDED';
+      hostNickname: string;
+    }[] = [];
+
+    this.rooms.forEach((room, roomId) => {
+      if (roomId === 'SINGLE_AI_PRACTICE') return;
+      if (room.players.length > 0) {
+        list.push({
+          roomId,
+          playerCount: room.players.length,
+          status: room.status,
+          hostNickname: room.players[0]?.nickname || '방장',
+        });
+      }
+    });
+
+    return list;
+  }
+
   // 플레이어 입장
   public joinRoom(roomId: string, user: { id: string; nickname: string; chips?: number }): GameState {
     const room = this.getOrCreateRoom(roomId);

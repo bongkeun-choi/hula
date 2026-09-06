@@ -4,11 +4,20 @@ import { GameManager } from './hoola/gameManager';
 export function setupSocketHandlers(io: SocketIOServer) {
   const gameManager = GameManager.getInstance();
 
+  const broadcastRoomList = () => {
+    io.emit('room_list_updated', gameManager.getActiveRooms());
+  };
+
   io.on('connection', (socket: Socket) => {
     let currentRoomId: string | null = null;
     let currentUserId: string | null = null;
 
-    // 1. 방 입장
+    // 0. 로비에서 현재 활성 방 목록 요청
+    socket.on('get_rooms', () => {
+      socket.emit('room_list_updated', gameManager.getActiveRooms());
+    });
+
+    // 1. 방 입장 (새 방 생성 또는 기존 방 참여)
     socket.on('join_room', ({ roomId, user }) => {
       try {
         currentRoomId = roomId;
@@ -17,6 +26,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
 
         const room = gameManager.joinRoom(roomId, user);
         io.to(roomId).emit('game_state_updated', room);
+        broadcastRoomList();
       } catch (err: any) {
         socket.emit('game_error', err.message);
       }
@@ -28,6 +38,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
       try {
         const room = gameManager.toggleReady(currentRoomId, currentUserId);
         io.to(currentRoomId).emit('game_state_updated', room);
+        broadcastRoomList();
       } catch (err: any) {
         socket.emit('game_error', err.message);
       }
@@ -91,7 +102,6 @@ export function setupSocketHandlers(io: SocketIOServer) {
     // 8. 음성 채팅 시그널링 (WebRTC Peer ID 교환)
     socket.on('voice_peer_ready', ({ peerId, nickname }) => {
       if (!currentRoomId || !currentUserId) return;
-      // 방의 다른 사람들에게 내 peerId 브로드캐스트
       socket.to(currentRoomId).emit('voice_peer_joined', {
         userId: currentUserId,
         peerId,
@@ -108,6 +118,21 @@ export function setupSocketHandlers(io: SocketIOServer) {
       });
     });
 
+    // 10. 방 나가기
+    socket.on('leave_room', () => {
+      if (currentRoomId && currentUserId) {
+        socket.leave(currentRoomId);
+        const room = gameManager.leaveRoom(currentRoomId, currentUserId);
+        if (room) {
+          io.to(currentRoomId).emit('game_state_updated', room);
+          io.to(currentRoomId).emit('voice_peer_left', { userId: currentUserId });
+        }
+        currentRoomId = null;
+        currentUserId = null;
+        broadcastRoomList();
+      }
+    });
+
     // 연결 종료
     socket.on('disconnect', () => {
       if (currentRoomId && currentUserId) {
@@ -116,6 +141,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
           io.to(currentRoomId).emit('game_state_updated', room);
           io.to(currentRoomId).emit('voice_peer_left', { userId: currentUserId });
         }
+        broadcastRoomList();
       }
     });
   });

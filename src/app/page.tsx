@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { io, Socket } from 'socket.io-client';
 import AuthModal from '@/components/auth/AuthModal';
-import Lobby from '@/components/lobby/Lobby';
+import Lobby, { ActiveRoomInfo } from '@/components/lobby/Lobby';
 import GameBoard from '@/components/game/GameBoard';
 import SinglePlayerGame from '@/components/game/SinglePlayerGame';
 import LoadingScreen from '@/components/common/LoadingScreen';
@@ -16,6 +16,7 @@ export default function Home() {
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
+  const [activeRooms, setActiveRooms] = useState<ActiveRoomInfo[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // 1. 초기 세션 확인
@@ -36,23 +37,21 @@ export default function Home() {
     checkAuth();
   }, []);
 
-  // 2. 방 입장 시 소켓 연결
+  // 2. 유저 인증 시 소켓 연결 유지 (로비 방 목록 & 인게임 동기화)
   useEffect(() => {
-    if (!currentRoomId || !user) return;
+    if (!user) return;
 
     const newSocket = io({
       transports: ['websocket', 'polling'],
     });
 
     newSocket.on('connect', () => {
-      newSocket.emit('join_room', {
-        roomId: currentRoomId,
-        user: {
-          id: user.id,
-          nickname: user.nickname,
-          chips: user.chips,
-        },
-      });
+      // 로비 접속 시 즉시 활성 방 목록 요청
+      newSocket.emit('get_rooms');
+    });
+
+    newSocket.on('room_list_updated', (rooms: ActiveRoomInfo[]) => {
+      setActiveRooms(rooms);
     });
 
     newSocket.on('game_state_updated', (updatedState: GameState) => {
@@ -69,29 +68,43 @@ export default function Home() {
     return () => {
       newSocket.disconnect();
     };
-  }, [currentRoomId, user]);
+  }, [user]);
 
-  // 방 입장 핸들러
+  // 3. 방 입장 핸들러
   const handleJoinRoom = (roomId: string) => {
+    if (!socket || !user) return;
     setCurrentRoomId(roomId);
+    socket.emit('join_room', {
+      roomId,
+      user: {
+        id: user.id,
+        nickname: user.nickname,
+        chips: user.chips,
+      },
+    });
   };
 
-  // 방 나가기
+  // 4. 방 나가기 핸들러
   const handleLeaveRoom = () => {
     if (socket) {
-      socket.disconnect();
-      setSocket(null);
+      socket.emit('leave_room');
+      socket.emit('get_rooms');
     }
     setCurrentRoomId(null);
     setGameState(null);
   };
 
-  // 로그아웃
+  // 5. 로그아웃
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
+    if (socket) {
+      socket.disconnect();
+      setSocket(null);
+    }
     setUser(null);
     setCurrentRoomId(null);
     setGameState(null);
+    setActiveRooms([]);
   };
 
   if (loading) {
@@ -112,16 +125,21 @@ export default function Home() {
     return (
       <SinglePlayerGame
         user={user}
-        onExit={() => setIsSinglePlayer(false)}
+        onExit={() => {
+          setIsSinglePlayer(false);
+          socket?.emit('get_rooms');
+        }}
       />
     );
   }
 
-  // 3단계: 방에 들어가지 않은 상태면 로비 화면 표시
+  // 3단계: 방에 들어가지 않은 상태면 로비 화면 표시 (실제 방 목록 노출)
   if (!currentRoomId || !gameState) {
     return (
       <Lobby
         user={user}
+        activeRooms={activeRooms}
+        onRefreshRooms={() => socket?.emit('get_rooms')}
         onJoinRoom={handleJoinRoom}
         onStartSinglePlayer={() => setIsSinglePlayer(true)}
         onLogout={handleLogout}
