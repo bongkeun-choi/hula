@@ -116,6 +116,9 @@ export default function GameBoard({
   const handleToggleSound = () => {
     const newState = sound.toggleSound();
     setIsSoundOn(newState);
+    if (newState) {
+      sound.playMeld();
+    }
   };
 
   // 소켓 액션 전송

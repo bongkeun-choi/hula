@@ -441,6 +441,9 @@ export default function SinglePlayerGame({ user, onExit }: SinglePlayerGameProps
   const handleToggleSound = () => {
     const newState = sound.toggleSound();
     setIsSoundOn(newState);
+    if (newState) {
+      sound.playMeld();
+    }
   };
 
   // 초보자를 위한 힌트 기능: 등록 가능한 패 추천
